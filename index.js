@@ -9,27 +9,48 @@ import {
   View,
   StyleSheet,
   Platform,
+  Animated,
+  TouchableHighlight,
 } from 'react-native';
 
 const styles = StyleSheet.create({
   container: {
-    alignItems: 'center',
+    alignItems: 'stretch',
     justifyContent: 'center',
+  },
+
+  contained: {
+    flex: 1,
+    alignItems: 'stretch',
+    justifyContent: 'center',
+  },
+
+  progress: {
+    position: 'absolute',
+    top: 300, // How to get this centered?
+    left: 150,
   },
 });
 
 const DefaultIndicator = ActivityIndicator;
+const AnimatedImage = Animated.createAnimatedComponent(Image);
 
 class ImageProgress extends Component {
   static propTypes = {
     indicator: PropTypes.func,
     indicatorProps: PropTypes.object,
+    onPress: PropTypes.func,
     renderIndicator: PropTypes.func,
     threshold: PropTypes.number,
+    thumbnailSource: PropTypes.object,
+    thumbnailBlurRadius: PropTypes.number,
   };
 
   static defaultProps = {
     threshold: 50,
+    thumbnailBlurRadius: 2,
+    thumbnailFadeDuration: 250,
+    imageFadeDuration: 250,
   };
 
   constructor(props) {
@@ -39,6 +60,8 @@ class ImageProgress extends Component {
       loading: false,
       progress: 0,
       thresholdReached: !props.threshold,
+      imageOpacity: new Animated.Value(0),
+      thumbnailOpacity: new Animated.Value(0),
     };
   }
 
@@ -66,6 +89,24 @@ class ImageProgress extends Component {
     }
   }
 
+  onLoadThumbnail() {
+    Animated.timing(this.state.thumbnailOpacity, {
+      toValue: 1,
+      duration: this.props.thumbnailFadeDuration,
+    }).start()
+  }
+
+  onLoadImage() {
+    Animated.timing(this.state.imageOpacity, {
+      toValue: 1,
+      duration: this.props.imageFadeDuration,
+    }).start()
+  }
+
+  hasThumbnail() {
+    return !!this.props.thumbnailSource
+  }
+
   ref = null;
   handleRef = (ref) => {
     this.ref = ref;
@@ -90,6 +131,7 @@ class ImageProgress extends Component {
         progress: 0,
       });
     }
+
     this.bubbleEvent('onLoadStart');
   };
 
@@ -121,6 +163,8 @@ class ImageProgress extends Component {
         progress: 1,
       });
     }
+
+    if(this.hasThumbnail) this.onLoadImage()
     this.bubbleEvent('onLoad', event);
   };
 
@@ -140,8 +184,9 @@ class ImageProgress extends Component {
         content = (<IndicatorComponent progress={progress} indeterminate={!loading || !progress} {...indicatorProps} />);
       }
     }
-    return (
-      <Image
+
+    const containedImage =
+      <AnimatedImage
         {...props}
         key={source ? source.uri || source : undefined}
         onLoadStart={this.handleLoadStart}
@@ -150,10 +195,28 @@ class ImageProgress extends Component {
         onLoad={this.handleLoad}
         ref={this.handleRef}
         source={source}
-        style={style}
-      >
-        {content}
-      </Image>
+        style={[styles.contained, {opacity: this.state.imageOpacity}]}
+      />
+
+    return (
+      <View style={style}>
+        <View style={styles.progress}>
+          {content}
+        </View>
+
+        {this.props.thumbnailSource ?
+          <AnimatedImage
+            blurRadius={this.props.thumbnailBlurRadius}
+            onLoad={() => this.onLoadThumbnail()}
+            source={this.props.thumbnailSource}
+            style={[style, {opacity: this.state.thumbnailOpacity}]}
+          >
+            {containedImage}
+          </AnimatedImage>
+          :
+          containedImage
+        }
+      </View>
     );
   }
 }
